@@ -16,7 +16,7 @@ app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
 @app.get("/")
 async def read_root():
     # Serve the main visualization map
-    map_path = BASE_DIR / "riverside_tract_accessibility_map.html"
+    map_path = BASE_DIR / "riverside_accessibility_map.html"
     if map_path.exists():
         return FileResponse(map_path)
     return {"message": "Map file not found. Please run the analysis scripts first."}

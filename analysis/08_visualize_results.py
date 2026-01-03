@@ -16,11 +16,14 @@ def get_paths():
     tracts_access_path = data_dir / "riverside_tracts_accessibility_15min.geojson"
     parks_path = data_dir / "parks.geojson"
     isochrones_path = data_dir / "isochrones" / "parks_isochrones_15min.geojson"
+
+    # IMPORTANT: load the *flagged* neighborhoods file
     neighborhoods_access_path = (
-        data_dir / "outputs" / "riverside_neighborhoods_accessibility_15min.geojson"
+        data_dir / "outputs" / "riverside_neighborhoods_accessibility_15min_flagged.geojson"
     )
 
-    out_map = project_root / "riverside_tract_accessibility_map.html"
+    # Optional: rename output to reflect neighborhoods too
+    out_map = project_root / "riverside_accessibility_map.html"
 
     return (
         boundary_path,
@@ -130,39 +133,37 @@ def main() -> None:
         tracts,
         name="Accessibility by tract",
         style_function=tract_style,
-        highlight_function=lambda feature: {
-            "weight": 2,
-            "color": "blue",
-        },
+        highlight_function=lambda feature: {"weight": 2, "color": "blue"},
         tooltip=tract_tooltip,
         popup=tract_popup,
-        show=True,  # visible by default
+        show=True,
     ).add_to(m)
 
-    # ---------- Neighborhood accessibility layer ---------- #
-    print("Adding neighborhood accessibility layer…")
+    # ---------- Neighborhood accessibility layer (FLAGGED) ---------- #
+    print("Adding neighborhood accessibility layer (with underserved flag)…")
 
-    # Neighborhood fields expected from 11_compute_accessibility_neighborhoods.py:
-    # - neighborhood_name
-    # - total_population
-    # - total_pop_within_15
-    # - neigh_coverage_fraction
-    # - neigh_accessibility_score
+    # These fields must exist in the flagged output:
+    # - is_underserved
+    # - pop_without_15
+    # - pct_without_15
+    # plus whatever your neighborhood access script provides
 
     neigh_tooltip = GeoJsonTooltip(
         fields=[
             "neighborhood_name",
             "total_population",
             "total_pop_within_15",
-            "neigh_coverage_fraction",
             "neigh_accessibility_score",
+            "pct_without_15",
+            "is_underserved",
         ],
         aliases=[
             "Neighborhood",
             "Total population",
             "Pop within 15 min",
-            "Coverage fraction",
             "Accessibility score",
+            "% without 15-min access",
+            "Underserved (strict)",
         ],
         localize=True,
     )
@@ -172,44 +173,58 @@ def main() -> None:
             "neighborhood_name",
             "total_population",
             "total_pop_within_15",
-            "neigh_coverage_fraction",
+            "pop_without_15",
+            "pct_without_15",
             "neigh_accessibility_score",
+            "is_underserved",
         ],
         aliases=[
             "Neighborhood:",
             "Total population:",
             "Population within 15-min walk:",
-            "Coverage fraction:",
+            "Population without 15-min access:",
+            "% without 15-min access:",
             "Accessibility score (0–100):",
+            "Underserved (strict):",
         ],
         localize=True,
     )
 
     def neigh_style(feature):
-        score = feature["properties"].get("neigh_accessibility_score")
-        return {
+        props = feature["properties"]
+        score = props.get("neigh_accessibility_score")
+        underserved = bool(props.get("is_underserved", False))
+
+        # Base fill by score
+        style = {
             "fillColor": color_for_score(score),
             "color": "black",
             "weight": 1.0,
             "fillOpacity": 0.6,
         }
 
+        # If underserved, make it visually obvious
+        if underserved:
+            style["color"] = "red"
+            style["weight"] = 3.0
+            style["fillOpacity"] = 0.8
+
+        return style
+
     GeoJson(
         neighborhoods,
-        name="Accessibility by neighborhood",
+        name="Accessibility by neighborhood (flagged underserved)",
         style_function=neigh_style,
-        highlight_function=lambda feature: {
-            "weight": 3,
-            "color": "darkred",
-        },
+        highlight_function=lambda feature: {"weight": 4, "color": "darkred"},
         tooltip=neigh_tooltip,
         popup=neigh_popup,
-        show=False,  # start hidden; user can toggle on
+        show=True,  # turn it on by default since this is your main story now
     ).add_to(m)
 
     # ---------- Isochrones outline layer ---------- #
     print("Adding isochrones layer…")
 
+    # IMPORTANT: make isochrones non-interactive so they don't block neighborhood clicks
     GeoJson(
         isochrones,
         name="15-minute park isochrones",
@@ -217,6 +232,7 @@ def main() -> None:
             "color": "#1f77b4",
             "weight": 1,
             "fillOpacity": 0.1,
+            "interactive": False,
         },
         show=True,
     ).add_to(m)
@@ -245,11 +261,7 @@ def main() -> None:
     GeoJson(
         boundary,
         name="City boundary",
-        style_function=lambda feature: {
-            "color": "black",
-            "weight": 2,
-            "fillOpacity": 0.0,
-        },
+        style_function=lambda feature: {"color": "black", "weight": 2, "fillOpacity": 0.0},
         show=True,
     ).add_to(m)
 
