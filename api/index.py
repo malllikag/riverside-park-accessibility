@@ -4,33 +4,22 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import json
+import os
 
 app = FastAPI()
 
-# Enable CORS for frontend communication
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# define paths
+# Vercel relative pathing
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
-ANALYSIS_DIR = BASE_DIR / "analysis"
-
-# Mount data directory to serve GeoJSON/files if needed
-app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
-
-@app.get("/")
-async def read_root():
-    # Serve the main visualization map (legacy support)
-    map_path = BASE_DIR / "riverside_accessibility_map.html"
-    if map_path.exists():
-        return FileResponse(map_path)
-    return {"message": "Map file not found. Please run the analysis scripts first."}
 
 @app.get("/api/v1/tracts")
 async def get_tracts():
@@ -58,7 +47,6 @@ async def get_neighborhoods():
 
 @app.get("/api/v1/stats")
 async def get_stats():
-    # Simple stats endpoint to drive dashboard metrics
     neigh_path = DATA_DIR / "outputs" / "riverside_neighborhoods_accessibility_15min_flagged.geojson"
     if not neigh_path.exists():
         raise HTTPException(status_code=404, detail="Data not found")
@@ -76,10 +64,6 @@ async def get_stats():
         "underserved_percentage": round((underserved / total_neighs) * 100, 1) if total_neighs > 0 else 0
     }
 
-@app.get("/health")
+@app.get("/api/v1/health")
 async def health_check():
     return {"status": "ok"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
