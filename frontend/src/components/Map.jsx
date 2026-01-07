@@ -1,6 +1,15 @@
-import React from 'react';
-import { MapContainer, TileLayer, GeoJSON, Tooltip, Popup } from 'react-leaflet';
+import React, { useEffect } from 'react';
+import { MapContainer, TileLayer, GeoJSON, Popup, useMap, Marker } from 'react-leaflet';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+
+// Fix for default Leaflet marker icons in React/Vite
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 const COLOR_RAMP = [
     { limit: 20, color: '#ffffcc' },
@@ -18,7 +27,22 @@ const getColor = (score) => {
     return '#006837';
 };
 
-export function Map({ tracts, neighborhoods, showTracts = true }) {
+function MapController({ searchedLocation }) {
+    const map = useMap();
+
+    useEffect(() => {
+        if (searchedLocation) {
+            map.flyTo([searchedLocation.lat, searchedLocation.lng], 16, {
+                duration: 1.5,
+                easeLinearity: 0.25
+            });
+        }
+    }, [searchedLocation, map]);
+
+    return null;
+}
+
+export function Map({ tracts, neighborhoods, showTracts = true, searchedLocation }) {
     const center = [33.9533, -117.3961]; // Riverside center
 
     const tractStyle = (feature) => ({
@@ -73,6 +97,16 @@ export function Map({ tracts, neighborhoods, showTracts = true }) {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                     url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                 />
+
+                <MapController searchedLocation={searchedLocation} />
+
+                {searchedLocation && (
+                    <Marker position={[searchedLocation.lat, searchedLocation.lng]}>
+                        <Popup>
+                            <div style={{ fontSize: '12px' }}>{searchedLocation.address}</div>
+                        </Popup>
+                    </Marker>
+                )}
 
                 {showTracts && tracts && (
                     <GeoJSON

@@ -47,27 +47,45 @@ def add_travel_time_to_edges(G: nx.MultiDiGraph, walk_speed_kmh: float) -> None:
     print("  added 'travel_time' to edges")
 
 
-def compute_reachable_nodes(
-    G: nx.MultiDiGraph, source_node: int, max_minutes: int
+def compute_reachable_nodes_multi_source(
+    G: nx.MultiDiGraph, source_nodes: List[int], max_minutes: int
 ) -> List[int]:
+    """Computation using multiple source nodes (entrances)."""
     max_seconds = max_minutes * 60
-    times = nx.single_source_dijkstra_path_length(
-        G,
-        source=source_node,
-        weight="travel_time",
-        cutoff=max_seconds,
-    )
-    return list(times.keys())
+    # nx doesn't have a direct multi-source Dijkstra with cutoff in one call easily for all lengths, 
+    # but we can simulate it by running from multiple sources.
+    all_reachable = set()
+    for node in source_nodes:
+        times = nx.single_source_dijkstra_path_length(
+            G,
+            source=node,
+            weight="travel_time",
+            cutoff=max_seconds,
+        )
+        all_reachable.update(times.keys())
+    return list(all_reachable)
 
 
-def build_isochrone_polygon(
+def build_isochrone_polygon_tighter(
     G: nx.MultiDiGraph,
     reachable_nodes: List[int],
 ) -> Polygon:
+    """Builds a tighter polygon by buffering reachable nodes instead of a convex hull."""
     nodes_gdf = ox.graph_to_gdfs(G, nodes=True, edges=False)
     sub_nodes = nodes_gdf.loc[reachable_nodes]
-    combined = sub_nodes.unary_union
-    return combined.convex_hull
+    
+    # Buffer nodes by 50m to create a continuous reachability surface
+    # This acts like a 'concave hull' that follows the streets.
+    # Convert to UTM for accurate buffering in meters
+    utm_crs = nodes_gdf.estimate_utm_crs()
+    sub_nodes_utm = sub_nodes.to_crs(utm_crs)
+    
+    buffered = sub_nodes_utm.buffer(60) # 60 meters buffer to close gaps between nodes
+    combined = buffered.unary_union
+    
+    # Simplify and convert back to 4326
+    tight_poly = combined.simplify(10)
+    return gpd.GeoSeries([tight_poly], crs=utm_crs).to_crs("EPSG:4326").iloc[0]
 
 
 # ----------------------------- Main ------------------------------------- #
@@ -96,31 +114,47 @@ def main() -> None:
 
     features: list[dict] = []
 
-    print("\nGenerating isochrones for parks…")
+    print("\nGenerating HIGH-ACCURACY isochrones for parks…")
     for idx, park in parks.iterrows():
         park_name = park.get("name", "Unnamed park")
         geom = park.geometry
 
         if geom is None or geom.is_empty:
-            print(f"  [skip] Park {idx} has no valid geometry")
             continue
 
-        centroid = geom.centroid
-        lon, lat = centroid.x, centroid.y
-
+        # MULTI-ENTRANCE LOGIC:
+        # Instead of centroid, sample points along the boundary every 30 meters
+        # This handles large parks where you can enter from any side.
         try:
-            source_node = ox.distance.nearest_nodes(G, X=lon, Y=lat)
+            boundary = geom.boundary
+            if boundary.is_empty: # Point parks
+                sample_points = [geom]
+            else:
+                # Calculate number of samples based on perimeter length
+                # Approx every 50m
+                num_samples = max(4, int(boundary.length / 0.0005)) # ~50m in degrees roughly
+                sample_points = [boundary.interpolate(i/num_samples, normalized=True) for i in range(num_samples)]
+            
+            source_nodes = []
+            for pt in sample_points:
+                node = ox.distance.nearest_nodes(G, X=pt.x, Y=pt.y)
+                source_nodes.append(node)
+                
+            # Remove duplicates
+            source_nodes = list(set(source_nodes))
+            
         except Exception as ex:
-            print(f"  [skip] Park {idx} ({park_name}): nearest node failed → {ex}")
+            print(f"  [skip] Park {idx} ({park_name}): entrance sampling failed → {ex}")
             continue
 
-        reachable = compute_reachable_nodes(G, source_node, ISOCHRONE_MINUTES)
+        reachable = compute_reachable_nodes_multi_source(G, source_nodes, ISOCHRONE_MINUTES)
         if not reachable:
             print(f"  [skip] Park {idx} ({park_name}): no reachable nodes")
             continue
 
         try:
-            polygon = build_isochrone_polygon(G, reachable)
+            # Use the tighter polygon builder
+            polygon = build_isochrone_polygon_tighter(G, reachable)
         except Exception as ex:
             print(f"  [skip] Park {idx} ({park_name}): polygon build failed → {ex}")
             continue
@@ -134,17 +168,17 @@ def main() -> None:
             }
         )
 
-        print(f"  ✔ Park {idx} ({park_name}): isochrone built with {len(reachable)} nodes")
+        print(f"  ✔ {park_name}: {len(source_nodes)} entrances, {len(reachable)} nodes reachable")
 
     if not features:
-        raise RuntimeError("No isochrones could be built for any park.")
+        raise RuntimeError("No isochrones could be built.")
 
     isochrones_gdf = gpd.GeoDataFrame(features, crs="EPSG:4326")
 
     out_path = isochrone_dir / f"parks_isochrones_{ISOCHRONE_MINUTES}min.geojson"
     isochrones_gdf.to_file(out_path, driver="GeoJSON")
 
-    print(f"\n✅ DONE: Saved {len(isochrones_gdf)} isochrones to:")
+    print(f"\n✅ DONE: Saved {len(isochrones_gdf)} ACCURATE isochrones to:")
     print(f"   {out_path}")
 
 
