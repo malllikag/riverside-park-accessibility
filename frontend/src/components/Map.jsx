@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, GeoJSON, Popup, useMap, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, Popup, useMap, Marker, Polyline, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -27,22 +27,36 @@ const getColor = (score) => {
     return '#006837';
 };
 
-function MapController({ searchedLocation }) {
+function MapController({ searchedLocation, nearbyParks }) {
     const map = useMap();
 
     useEffect(() => {
-        if (searchedLocation) {
+        if (searchedLocation && nearbyParks && nearbyParks.length > 0) {
+            // Create bounds that include the searched location and the nearest park
+            const nearestParkCoord = [nearbyParks[0].coordinates[1], nearbyParks[0].coordinates[0]];
+            const bounds = L.latLngBounds([
+                [searchedLocation.lat, searchedLocation.lng],
+                nearestParkCoord
+            ]);
+
+            // Expand bounds to include other nearby parks for context
+            nearbyParks.slice(1).forEach(park => {
+                bounds.extend([park.coordinates[1], park.coordinates[0]]);
+            });
+
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+        } else if (searchedLocation) {
             map.flyTo([searchedLocation.lat, searchedLocation.lng], 16, {
                 duration: 1.5,
                 easeLinearity: 0.25
             });
         }
-    }, [searchedLocation, map]);
+    }, [searchedLocation, nearbyParks, map]);
 
     return null;
 }
 
-export function Map({ tracts, parks, neighborhoods, showTracts = true, searchedLocation }) {
+export function Map({ tracts, parks, neighborhoods, showTracts = true, searchedLocation, nearbyParks }) {
     const center = [33.9533, -117.3961]; // Riverside center
 
     const tractStyle = (feature) => ({
@@ -116,7 +130,48 @@ export function Map({ tracts, parks, neighborhoods, showTracts = true, searchedL
                     url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                 />
 
-                <MapController searchedLocation={searchedLocation} />
+                <MapController searchedLocation={searchedLocation} nearbyParks={nearbyParks} />
+
+                {searchedLocation && nearbyParks && nearbyParks.length > 0 && (
+                    <Polyline
+                        positions={[
+                            [searchedLocation.lat, searchedLocation.lng],
+                            [nearbyParks[0].coordinates[1], nearbyParks[0].coordinates[0]]
+                        ]}
+                        pathOptions={{
+                            color: 'var(--accent)',
+                            dashArray: '10, 10',
+                            weight: 3,
+                            opacity: 0.6
+                        }}
+                    />
+                )}
+
+                {nearbyParks && nearbyParks.map((park, i) => (
+                    <Marker
+                        key={`nearby-${i}`}
+                        position={[park.coordinates[1], park.coordinates[0]]}
+                        icon={L.divIcon({
+                            className: 'custom-marker',
+                            html: `<div style="
+                                background: ${i === 0 ? '#fbbf24' : '#22c55e'};
+                                width: 14px;
+                                height: 14px;
+                                border: 3px solid white;
+                                border-radius: 50%;
+                                box-shadow: 0 0 10px rgba(0,0,0,0.3);
+                            "></div>`,
+                            iconSize: [14, 14],
+                            iconAnchor: [7, 7]
+                        })}
+                    >
+                        <Tooltip permanent={i === 0} direction="top" offset={[0, -10]}>
+                            <div style={{ fontSize: '11px', fontWeight: 600 }}>
+                                {i === 0 ? '🏆 Largest/Closest: ' : ''}{park.name}
+                            </div>
+                        </Tooltip>
+                    </Marker>
+                ))}
 
                 {searchedLocation && (
                     <Marker position={[searchedLocation.lat, searchedLocation.lng]}>

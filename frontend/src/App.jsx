@@ -30,38 +30,44 @@ function App() {
       }
     }
 
-    // Find nearest park (preferring those with names)
-    let nearestPark = null;
-    let minDistance = Infinity;
+    // Find Top 3 nearest parks (preferring those with names)
+    let nearbyParks = [];
 
     if (parks && parks.features) {
-      parks.features.forEach(park => {
-        const parkName = park.properties?.name;
-        // Skip parks with no name or generic "Unnamed park" label
-        if (!parkName || parkName === 'Unnamed park') return;
+      const namedParks = parks.features
+        .filter(park => {
+          const name = park.properties?.name;
+          return name && name !== 'Unnamed park';
+        })
+        .map(park => {
+          const parkCentroid = turf.centroid(park);
+          const dist = turf.distance(point, parkCentroid, { units: 'kilometers' });
+          return {
+            ...park,
+            distance: dist,
+            distanceFormatted: dist.toFixed(2),
+            time: Math.round(dist / 0.08)
+          };
+        });
 
-        // Simple distance to park centroid for performance
-        const parkCentroid = turf.centroid(park);
-        const dist = turf.distance(point, parkCentroid, { units: 'kilometers' });
-        if (dist < minDistance) {
-          minDistance = dist;
-          nearestPark = park;
-        }
-      });
+      // Sort by distance and take top 3
+      nearbyParks = namedParks
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 3);
     }
 
     if (foundTract) {
-      const walkingTimeMinutes = Math.round((minDistance / 0.08) || 0); // ~5km/h walking speed (0.083 km/min)
 
       setSearchResult({
         score: Math.round(foundTract.properties.accessibility_score),
         isWalkable: foundTract.properties.accessibility_score >= 50,
         address: loc.address,
-        nearestPark: {
-          name: nearestPark?.properties?.name || 'Unnamed Park',
-          distance: minDistance.toFixed(2),
-          time: walkingTimeMinutes
-        }
+        nearbyParks: nearbyParks.map(p => ({
+          name: p.properties.name,
+          distance: p.distanceFormatted,
+          time: p.time,
+          coordinates: turf.getCoord(turf.centroid(p))
+        }))
       });
     } else {
       setSearchResult({
@@ -170,16 +176,28 @@ function App() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <div>Accessibility Score: <strong>{searchResult.score}/100</strong></div>
-                    {searchResult.nearestPark && (
-                      <div style={{
-                        marginTop: '4px',
-                        paddingTop: '4px',
-                        borderTop: '1px solid var(--glass-border)',
-                        fontSize: '0.7rem'
-                      }}>
-                        Nearest Park: <strong>{searchResult.nearestPark.name}</strong>
-                        <div style={{ color: 'var(--accent)', fontWeight: 600 }}>
-                          Approx. {searchResult.nearestPark.time} min walk ({searchResult.nearestPark.distance} km)
+                    {searchResult.nearbyParks && searchResult.nearbyParks.length > 0 && (
+                      <div style={{ marginTop: '8px', borderTop: '1px solid var(--glass-border)', paddingTop: '8px' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.75rem', marginBottom: '8px', color: 'var(--text-secondary)' }}>Nearby Parks:</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {searchResult.nearbyParks.map((park, i) => (
+                            <div key={i} style={{
+                              fontSize: '0.7rem',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '4px 8px',
+                              background: i === 0 ? 'var(--accent-soft)' : 'transparent',
+                              borderRadius: '6px'
+                            }}>
+                              <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginRight: '8px' }}>
+                                {i + 1}. <strong>{park.name}</strong>
+                              </span>
+                              <span style={{ color: 'var(--accent)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                {park.time} min
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -203,6 +221,7 @@ function App() {
           neighborhoods={neighborhoods}
           showTracts={showTracts}
           searchedLocation={searchedLocation}
+          nearbyParks={searchResult?.nearbyParks}
         />
 
         {/* Floating Legend */}
