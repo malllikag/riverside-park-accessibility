@@ -42,7 +42,7 @@ function MapController({ searchedLocation }) {
     return null;
 }
 
-export function Map({ tracts, neighborhoods, showTracts = true, searchedLocation }) {
+export function Map({ tracts, parks, neighborhoods, showTracts = true, searchedLocation }) {
     const center = [33.9533, -117.3961]; // Riverside center
 
     const tractStyle = (feature) => ({
@@ -62,6 +62,24 @@ export function Map({ tracts, neighborhoods, showTracts = true, searchedLocation
             color: isUnderserved ? '#ef4444' : '#334155',
             fillOpacity: 0.6
         };
+    };
+
+    const parkStyle = {
+        fillColor: '#22c55e',
+        weight: 1,
+        opacity: 1,
+        color: '#166534',
+        fillOpacity: 0.5
+    };
+
+    const onEachPark = (feature, layer) => {
+        const name = feature.properties.name || 'Unnamed Park';
+        layer.bindPopup(`
+            <div style="font-family: sans-serif; min-width: 120px;">
+                <strong style="display: block; margin-bottom: 4px;">${name}</strong>
+                <div style="font-size: 14px; color: #166534;">Park Space</div>
+            </div>
+        `);
     };
 
     const onEachTract = (feature, layer) => {
@@ -106,6 +124,25 @@ export function Map({ tracts, neighborhoods, showTracts = true, searchedLocation
                             <div style={{ fontSize: '12px' }}>{searchedLocation.address}</div>
                         </Popup>
                     </Marker>
+                )}
+
+                {parks && (
+                    <GeoJSON
+                        key={`parks-${parks.features.length}`}
+                        data={parks}
+                        style={parkStyle}
+                        onEachFeature={onEachPark}
+                        pointToLayer={(feature, latlng) => {
+                            return L.circleMarker(latlng, {
+                                radius: 6,
+                                fillColor: '#22c55e',
+                                color: '#166534',
+                                weight: 1,
+                                opacity: 1,
+                                fillOpacity: 0.7
+                            });
+                        }}
+                    />
                 )}
 
                 {showTracts && tracts && (
