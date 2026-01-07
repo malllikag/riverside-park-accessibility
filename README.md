@@ -1,62 +1,90 @@
-# Riverside County Parks Accessibility Analysis
+# 🌳 Riverside County Parks Accessibility Dashboard (v2.0)
 
-This project analyzes park accessibility in Riverside, California, using OpenStreetMap data, census tracts, and isochrone calculations. It provides a visualization of accessibility scores across different neighborhoods and census tracts.
+A professional-grade urban planning and geospatial analytics dashboard designed to measure and visualize park accessibility (the "15-minute city" model) across Riverside County, CA.
 
-## Project Structure
+---
 
-- `analysis/`: Python scripts for data downloading, processing, and visualization.
-- `backend/`: FastAPI server for serving the generated accessibility map.
-- `data/`: (Not tracked in Git) Directory where GeoJSON and other geo-spatial files are stored.
+## 📍 Project Overview
 
-## Setup and Installation
+This tool identifies **"Park Deserts"** by simulating realistic 15-minute walking routes from every home in Riverside to the nearest public park. It uses high-fidelity street-network modeling to provide scientifically accurate accessibility scores (0-100).
 
-### Prerequisites
+### **Key Features**
+- **V2 High-Accuracy Model**: Uses Multi-Entrance sampling and street-accurate concave reachability buffers.
+- **Interactive Heatmap**: Visualizes accessibility layers (Census Tracts & Neighborhoods).
+- **Personal Search**: Users can input their address to instantly receive a personalized accessibility score.
+- **Top 5 Chart**: Real-time ranking of the most walkable neighborhoods in the county.
+
+---
+
+## 🏗️ The Technical Workflow
+
+The project is built as a three-layer "Engine" that converts raw geographic data into a user-friendly dashboard.
+
+### **1. Data Mining & Cleaning**
+*   **OSMNX**: *Map Data Downloader.* (Pulls real-world street and park coordinates).
+*   **Python**: *Execution Engine.* (The core code that automates the whole process).
+
+### **2. Geospatial Logic (The Math)**
+*   **Dijkstra's Algorithm**: *Pathfinding Logic.* (Calculates the shortest walking route through millions of intersections).
+*   **NetworkX**: *Graph Math Library.* (Industry-standard tool for networking/transportation math).
+*   **GeoPandas**: *Spatial Database.* (Handles massive tables of map shapes and coordinates).
+*   **Shapely**: *Geometry Engine.* (Calculates intersections, areas, and boundaries on the map).
+
+### **3. Full-Stack Web App**
+*   **FastAPI**: *High-Speed Backend.* (Serves data from the Python engine to the browser).
+*   **React 19**: *User Interface.* (Builds the interactive widgets and buttons).
+*   **Leaflet**: *Mapping Engine.* (Renders the colorful heatmap in your browser).
+*   **Nominatim**: *Address Finder.* (Converts your typed address into Map Coordinates).
+*   **Turf.js**: *Browser-based Spatial Engine.* (Calculates your personal score instantly in the browser).
+
+---
+
+## 📂 Project Structure
+
+- `analysis/`: High-fidelity Python scripts for data extraction and isochrone calculation.
+- `api/`: FastAPI backend (optimized for Vercel Serverless deployment).
+- `frontend/`: React-based dashboard with mobile-responsive design.
+- `data/`: GeoJSON results and street-network graphs.
+
+---
+
+## 🚀 Setup & Local Running
+
+### **Prerequisites**
 - Python 3.10+
-- `pip`
+- Node.js & npm
 
-### Step 1: Install Dependencies
-Navigate to the root directory and install the required packages:
-
+### **1. Setup Architecture**
+From the root directory:
 ```bash
-pip install -r backend/requirements.txt
+# Install frontend dependencies
+npm install --prefix frontend
+
+# Install backend dependencies
+pip install -r api/requirements.txt
 ```
 
-*(Optional)* If you are running the analysis scripts, ensure you have the analysis requirements installed (standard geospatial libraries like `osmnx`, `geopandas`, `folium`, etc.).
+### **2. Run Locally**
+Open two terminals:
 
-## Data Analysis Pipeline
-
-To regenerate the analysis, run the scripts in the `analysis/` directory in the following order:
-
-1.  **`01_download_data.py`**: Downloads the city boundary, walking network, and park features from OpenStreetMap.
-2.  **`02_generate_isochrones.py`**: Calculates 15-minute walking isochrones for all identified parks.
-3.  **`03_prepare_tracts.py`**: Downloads and prepares US Census tracts for the Riverside area.
-4.  **`04_compute_tract_accessibility.py`**: Calculates accessibility scores for each census tract based on park proximity.
-5.  **`05_prepare_neighborhoods.py`**: Processes neighborhood-level data for the analysis.
-6.  **`06_compute_neighborhood_accessibility.py`**: Aggregates tract-level data to the neighborhood level.
-7.  **`07_flag_underserved.py`**: Identifies neighborhoods with low accessibility scores.
-8.  **`08_visualize_results.py`**: Generates the final `riverside_accessibility_map.html`.
-
-## Running the Web Application
-
-The project now features a modern React-based dashboard. To run the full application (Frontend + Backend):
-
-### 1. Start the Backend API
-Navigate to the `backend/` directory and run the server:
+**Terminal 1 (Backend):**
 ```bash
 cd backend
 python main.py
 ```
-The API will be available at `http://localhost:8000`.
 
-### 2. Start the Frontend Dashboard
-Navigate to the `frontend/` directory and start the development server:
+**Terminal 2 (Frontend):**
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
-The dashboard will be available at `http://localhost:5173`.
 
-## Data Analysis Pipeline
-...
-MIT
+---
+
+## 📈 The Accessibility Formula (V2)
+The score (0-100) represents the **percentage of residential land** within a 15-minute walk of a park entrance. 
+- **Multi-Entrance**: Analysis starts from every gate/sidewalk of a park.
+- **Network-Based**: We only count distance traveled on official roads and trails, not "as the crow flies."
+
+---
+*Developed for Riverside County Geospatial Analytics.*

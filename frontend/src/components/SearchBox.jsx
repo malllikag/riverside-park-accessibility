@@ -68,7 +68,7 @@ export function SearchBox({ onLocationSelect }) {
             style={{
                 position: 'fixed',
                 top: '16px',
-                left: '50%',
+                left: 'calc(50% + 40px)',
                 transform: 'translateX(-50%)',
                 zIndex: 1100,
                 width: 'min(90vw, 500px)',
