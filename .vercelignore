@@ -1,0 +1,10 @@
+analysis/
+backend/
+cache/
+.git/
+.venv/
+__pycache__/
+*.pyc
+Step-*-*.ipynb
+Step-*-*.html
+riverside_accessibility_map.html
